@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ledger — budget tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#FFF4E4;
+    --cream-2:#F7E7CE;
+    --cream-3:#ECD8B7;
+    --ink:#2B1A12;
+    --ink-soft:#5C4433;
+    --ink-faint:#8A6E58;
+    --orange:#DC6D18;
+    --orange-light:#F0954C;
+    --orange-wash:rgba(220,109,24,0.12);
+    --rust:#A8431B;
+    --rust-light:#C25A2C;
+    --rust-wash:rgba(168,67,27,0.12);
+    --radius:3px;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  body{
+    background:var(--cream);
+    color:var(--ink);
+    font-family:'JetBrains Mono', monospace;
+    min-height:100vh;
+    padding:32px 20px 80px;
+    background-image:
+      radial-gradient(circle at 12% 0%, rgba(220,109,24,0.06), transparent 40%),
+      radial-gradient(circle at 88% 8%, rgba(43,26,18,0.05), transparent 45%);
+  }
+
+  .wrap{ max-width:900px; margin:0 auto; }
+
+  header{
+    display:flex; align-items:baseline; justify-content:space-between;
+    border-bottom:1px solid var(--cream-3);
+    padding-bottom:14px; margin-bottom:28px;
+    flex-wrap:wrap; gap:10px;
+  }
+  .brand{ font-size:15px; letter-spacing:0.02em; color:var(--ink-soft); }
+  .brand b{ color:var(--ink); font-weight:700; }
+  .brand .dot{ color:var(--orange); }
+  .clock{ font-size:12px; color:var(--ink-faint); }
+
+  .card{
+    background:var(--cream-2);
+    border:1px solid var(--cream-3);
+    border-radius:var(--radius);
+    padding:20px 22px;
+    margin-bottom:22px;
+  }
+
+  .prompt-line{ font-size:12px; color:var(--ink-faint); margin-bottom:14px; }
+  .prompt-line .sym{ color:var(--orange); }
+
+  /* balance */
+  .balance-grid{
+    display:grid;
+    grid-template-columns:1.4fr 1fr 1fr;
+    gap:18px;
+  }
+  @media (max-width:600px){ .balance-grid{ grid-template-columns:1fr; } }
+
+  .label{ font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
+
+  .balance-main .amount{ font-size:38px; font-weight:700; letter-spacing:-0.01em; }
+  .balance-main .amount.neg{ color:var(--rust); }
+  .balance-main .amount.pos{ color:var(--ink); }
+
+  .sub-stat .amount{ font-size:20px; font-weight:600; }
+  .sub-stat.income .amount{ color:var(--orange); }
+  .sub-stat.expense .amount{ color:var(--rust); }
+
+  /* entry form */
+  .entry-form{
+    display:grid;
+    grid-template-columns:auto 100px 1.3fr 0.9fr 0.8fr auto;
+    gap:10px;
+    align-items:stretch;
+  }
+  @media (max-width:760px){
+    .entry-form{ grid-template-columns:1fr 1fr; }
+    .entry-form .full{ grid-column:1 / -1; }
+  }
+
+  .type-toggle{ display:flex; border:1px solid var(--cream-3); border-radius:var(--radius); overflow:hidden; }
+  .type-toggle button{
+    flex:1; border:none; background:var(--cream-2); color:var(--ink-faint);
+    font-family:inherit; font-size:12px; padding:0 12px; cursor:pointer;
+  }
+  .type-toggle button.active[data-type="expense"]{ background:var(--rust-wash); color:var(--rust); }
+  .type-toggle button.active[data-type="income"]{ background:var(--orange-wash); color:var(--orange); }
+
+  input, select{
+    background:var(--cream);
+    border:1px solid var(--cream-3);
+    color:var(--ink);
+    font-family:inherit;
+    font-size:13px;
+    padding:0 12px;
+    border-radius:var(--radius);
+    height:38px;
+    width:100%;
+    outline:none;
+  }
+  input::placeholder{ color:var(--ink-faint); }
+  input:focus, select:focus{ border-color:var(--orange); }
+
+  .btn{
+    background:var(--orange);
+    color:var(--cream);
+    border:none;
+    font-family:inherit;
+    font-weight:700;
+    font-size:13px;
+    border-radius:var(--radius);
+    padding:0 20px;
+    cursor:pointer;
+    transition:background .15s;
+  }
+  .btn:hover{ background:var(--orange-light); }
+  .btn.ghost{
+    background:transparent; color:var(--ink-soft); border:1px solid var(--cream-3);
+    font-weight:500; padding:0 14px; height:32px; font-size:12px;
+  }
+  .btn.ghost:hover{ border-color:var(--orange); color:var(--orange); }
+
+  .toolbar{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+
+  /* ledger */
+  .ledger-block{ padding:0; overflow:hidden; }
+  .ledger-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 22px 10px; flex-wrap:wrap; gap:10px;
+  }
+  .filter-row{ display:flex; gap:6px; }
+  .filter-row button{
+    background:transparent; border:1px solid var(--cream-3); color:var(--ink-faint);
+    font-family:inherit; font-size:11px; padding:5px 10px; border-radius:var(--radius); cursor:pointer;
+  }
+  .filter-row button.active{ border-color:var(--orange); color:var(--orange); }
+
+  .ledger-rows{ max-height:420px; overflow-y:auto; }
+  .row{
+    display:grid;
+    grid-template-columns:70px 1fr 100px 100px 24px 24px;
+    align-items:center;
+    gap:10px;
+    padding:11px 22px;
+    border-top:1px solid var(--cream-3);
+    font-size:13px;
+  }
+  .row .date{ color:var(--ink-faint); font-size:11px; }
+  .row .desc{ color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row .desc .rec-badge{ color:var(--orange); font-size:10px; margin-left:6px; }
+  .row .cat{ color:var(--ink-faint); font-size:11px; }
+  .row .cat::before{ content:"#"; color:var(--cream-3); margin-right:2px; }
+  .row .amt{ text-align:right; font-weight:600; }
+  .row .amt.income{ color:var(--orange); }
+  .row .amt.expense{ color:var(--rust); }
+  .row .del{ background:none; border:none; color:var(--cream-3); cursor:pointer; font-size:15px; justify-self:end; line-height:1; }
+  .row .del:hover{ color:var(--rust); }
+
+  .empty-state{ padding:40px 22px; text-align:center; color:var(--ink-faint); font-size:13px; }
+  .empty-state .sym{ color:var(--cream-3); font-size:20px; display:block; margin-bottom:10px; }
+
+  /* monthly summary */
+  .month-row{
+    display:grid; grid-template-columns:90px 1fr 90px 90px 90px; gap:14px;
+    align-items:center; padding:10px 0; border-top:1px solid var(--cream-3); font-size:12px;
+  }
+  .month-row:first-of-type{ border-top:none; }
+  .month-row .m-label{ color:var(--ink); font-weight:600; }
+  .bar-track{ height:8px; background:var(--cream-3); border-radius:4px; overflow:hidden; display:flex; }
+  .bar-track .in{ background:var(--orange); height:100%; }
+  .bar-track .out{ background:var(--rust); height:100%; }
+  .month-row .m-net{ text-align:right; font-weight:600; }
+  .month-row .m-net.neg{ color:var(--rust); }
+  .month-row .m-net.pos{ color:var(--ink); }
+  .month-row .m-in{ text-align:right; color:var(--orange); }
+  .month-row .m-out{ text-align:right; color:var(--rust); }
+
+  /* recurring */
+  .rec-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 0; border-top:1px solid var(--cream-3); font-size:12px;
+  }
+  .rec-item:first-of-type{ border-top:none; }
+  .rec-item .info{ color:var(--ink); }
+  .rec-item .info .freq{ color:var(--ink-faint); margin-left:8px; }
+  .rec-item .amt{ font-weight:600; margin-right:10px; }
+  .rec-item .amt.income{ color:var(--orange); }
+  .rec-item .amt.expense{ color:var(--rust); }
+  .rec-item .stop{ background:none; border:none; color:var(--cream-3); cursor:pointer; font-size:14px; }
+  .rec-item .stop:hover{ color:var(--rust); }
+
+  footer{ max-width:900px; margin:26px auto 0; text-align:center; font-size:11px; color:var(--ink-faint); }
+
+  ::-webkit-scrollbar{ width:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--cream-3); border-radius:4px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
+  :focus-visible{ outline:2px solid var(--orange); outline-offset:2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand"><b>ledger</b><span class="dot">.</span>local — a plain-money log kept on this device</div>
+    <div class="clock" id="clock"></div>
+  </header>
+
+  <section class="card">
+    <div class="prompt-line"><span class="sym">$</span> balance --summary</div>
+    <div class="balance-grid">
+      <div class="balance-main">
+        <div class="label">current balance</div>
+        <div class="amount" id="balanceAmt">$0.00</div>
+      </div>
+      <div class="sub-stat income">
+        <div class="label">total in</div>
+        <div class="amount" id="incomeAmt">$0.00</div>
+      </div>
+      <div class="sub-stat expense">
+        <div class="label">total out</div>
+        <div class="amount" id="expenseAmt">$0.00</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="prompt-line"><span class="sym">&gt;</span> log a new entry</div>
+    <form class="entry-form" id="entryForm">
+      <div class="type-toggle" id="typeToggle">
+        <button type="button" data-type="expense" class="active">out</button>
+        <button type="button" data-type="income">in</button>
+      </div>
+      <input type="number" id="amountInput" step="0.01" min="0" placeholder="0.00" required>
+      <input type="text" id="descInput" placeholder="description — e.g. groceries" required>
+      <input type="text" id="catInput" placeholder="category">
+      <select id="repeatInput">
+        <option value="none">once</option>
+        <option value="weekly">weekly</option>
+        <option value="monthly">monthly</option>
+      </select>
+      <button type="submit" class="btn">add</button>
+    </form>
+    <div class="toolbar">
+      <button type="button" class="btn ghost" id="exportBtn">export csv</button>
+      <button type="button" class="btn ghost" id="clearBtn">clear all data</button>
+    </div>
+  </section>
+
+  <section class="card" id="recurringCard" style="display:none;">
+    <div class="prompt-line"><span class="sym">↻</span> recurring entries</div>
+    <div id="recurringList"></div>
+  </section>
+
+  <section class="card">
+    <div class="prompt-line"><span class="sym">▤</span> monthly totals</div>
+    <div id="monthlyList"></div>
+  </section>
+
+  <section class="card ledger-block">
+    <div class="ledger-head">
+      <div class="prompt-line" style="margin:0;"><span class="sym">#</span> entries</div>
+      <div class="filter-row" id="filterRow">
+        <button data-filter="all" class="active">all</button>
+        <button data-filter="income">in</button>
+        <button data-filter="expense">out</button>
+      </div>
+    </div>
+    <div class="ledger-rows" id="ledgerRows"></div>
+  </section>
+
+</div>
+
+<footer>everything here lives only in this browser — clearing site data clears the ledger</footer>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'ledger_local_entries_v1';
+  const RECURRING_KEY = 'ledger_local_recurring_v1';
+  let entries = [];
+  let recurring = [];
+  let currentType = 'expense';
+  let currentFilter = 'all';
+
+  function load(){
+    try{ entries = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }catch(e){ entries = []; }
+    try{ recurring = JSON.parse(localStorage.getItem(RECURRING_KEY)) || []; }catch(e){ recurring = []; }
+  }
+  function save(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    localStorage.setItem(RECURRING_KEY, JSON.stringify(recurring));
+  }
+
+  function fmt(n){
+    const sign = n < 0 ? '-' : '';
+    return sign + '$' + Math.abs(n).toFixed(2);
+  }
+  function fmtDate(iso){
+    return new Date(iso).toLocaleDateString(undefined, {month:'short', day:'2-digit'});
+  }
+  function monthKey(iso){
+    const d = new Date(iso);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  }
+  function monthLabel(key){
+    const [y,m] = key.split('-');
+    const d = new Date(parseInt(y), parseInt(m)-1, 1);
+    return d.toLocaleDateString(undefined, {month:'short', year:'numeric'});
+  }
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function addDays(dateStr, days){
+    const d = new Date(dateStr);
+    d.setDate(d.getDate() + days);
+    return d.toISOString();
+  }
+  function addMonths(dateStr, months){
+    const d = new Date(dateStr);
+    d.setMonth(d.getMonth() + months);
+    return d.toISOString();
+  }
+  function advance(dateStr, freq){
+    return freq === 'weekly' ? addDays(dateStr, 7) : addMonths(dateStr, 1);
+  }
+
+  // catch up any recurring entries that are due, then reschedule
+  function processRecurring(){
+    const now = new Date();
+    let changed = false;
+    recurring.forEach(rule => {
+      let guard = 0;
+      while(new Date(rule.nextDate) <= now && guard < 500){
+        entries.push({
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+          type: rule.type,
+          amount: rule.amount,
+          desc: rule.desc,
+          cat: rule.cat,
+          date: rule.nextDate,
+          recurring: true
+        });
+        rule.nextDate = advance(rule.nextDate, rule.freq);
+        changed = true;
+        guard++;
+      }
+    });
+    if(changed) save();
+  }
+
+  function renderBalance(){
+    const income = entries.filter(e => e.type === 'income').reduce((s,e)=>s+e.amount,0);
+    const expense = entries.filter(e => e.type === 'expense').reduce((s,e)=>s+e.amount,0);
+    const balance = income - expense;
+    const balEl = document.getElementById('balanceAmt');
+    balEl.textContent = fmt(balance);
+    balEl.className = 'amount ' + (balance < 0 ? 'neg' : 'pos');
+    document.getElementById('incomeAmt').textContent = fmt(income);
+    document.getElementById('expenseAmt').textContent = fmt(expense);
+  }
+
+  function renderLedger(){
+    const rowsEl = document.getElementById('ledgerRows');
+    const filtered = entries
+      .filter(e => currentFilter === 'all' || e.type === currentFilter)
+      .sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    if(filtered.length === 0){
+      rowsEl.innerHTML = '<div class="empty-state"><span class="sym">∅</span>no entries yet — log your first one above</div>';
+      return;
+    }
+
+    rowsEl.innerHTML = filtered.map(e => `
+      <div class="row">
+        <div class="date">${fmtDate(e.date)}</div>
+        <div class="desc">${escapeHtml(e.desc)}${e.recurring ? '<span class="rec-badge">↻</span>' : ''}</div>
+        <div class="cat">${escapeHtml(e.cat || 'general')}</div>
+        <div class="amt ${e.type}">${e.type === 'expense' ? '-' : '+'}${fmt(e.amount)}</div>
+        <button class="del" data-id="${e.id}" aria-label="delete entry">×</button>
+      </div>
+    `).join('');
+  }
+
+  function renderMonthly(){
+    const map = {};
+    entries.forEach(e => {
+      const key = monthKey(e.date);
+      if(!map[key]) map[key] = {income:0, expense:0};
+      map[key][e.type] += e.amount;
+    });
+    const keys = Object.keys(map).sort().reverse();
+    const el = document.getElementById('monthlyList');
+    if(keys.length === 0){
+      el.innerHTML = '<div class="empty-state"><span class="sym">∅</span>no data yet</div>';
+      return;
+    }
+    const maxTotal = Math.max(...keys.map(k => map[k].income + map[k].expense), 1);
+    el.innerHTML = keys.map(k => {
+      const {income, expense} = map[k];
+      const net = income - expense;
+      const inPct = (income / maxTotal) * 100;
+      const outPct = (expense / maxTotal) * 100;
+      return `
+        <div class="month-row">
+          <div class="m-label">${monthLabel(k)}</div>
+          <div class="bar-track"><div class="in" style="width:${inPct}%"></div><div class="out" style="width:${outPct}%"></div></div>
+          <div class="m-in">${fmt(income)}</div>
+          <div class="m-out">${fmt(expense)}</div>
+          <div class="m-net ${net < 0 ? 'neg' : 'pos'}">${fmt(net)}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderRecurring(){
+    const card = document.getElementById('recurringCard');
+    const el = document.getElementById('recurringList');
+    if(recurring.length === 0){ card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    el.innerHTML = recurring.map(r => `
+      <div class="rec-item">
+        <div class="info">${escapeHtml(r.desc)}<span class="freq">${r.freq} · next ${fmtDate(r.nextDate)}</span></div>
+        <div>
+          <span class="amt ${r.type}">${r.type === 'expense' ? '-' : '+'}${fmt(r.amount)}</span>
+          <button class="stop" data-id="${r.id}" aria-label="stop recurring entry">×</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderAll(){
+    renderBalance();
+    renderLedger();
+    renderMonthly();
+    renderRecurring();
+  }
+
+  document.getElementById('typeToggle').addEventListener('click', function(e){
+    const btn = e.target.closest('button');
+    if(!btn) return;
+    currentType = btn.dataset.type;
+    this.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+  });
+
+  document.getElementById('filterRow').addEventListener('click', function(e){
+    const btn = e.target.closest('button');
+    if(!btn) return;
+    currentFilter = btn.dataset.filter;
+    this.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+    renderLedger();
+  });
+
+  document.getElementById('entryForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    const amount = parseFloat(document.getElementById('amountInput').value);
+    const desc = document.getElementById('descInput').value.trim();
+    const cat = document.getElementById('catInput').value.trim();
+    const repeat = document.getElementById('repeatInput').value;
+    if(!amount || amount <= 0 || !desc) return;
+
+    const now = new Date().toISOString();
+    entries.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+      type: currentType,
+      amount, desc, cat, date: now,
+      recurring: repeat !== 'none'
+    });
+
+    if(repeat !== 'none'){
+      recurring.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+        type: currentType,
+        amount, desc, cat,
+        freq: repeat,
+        nextDate: advance(now, repeat)
+      });
+    }
+
+    save();
+    renderAll();
+    this.reset();
+    document.getElementById('descInput').focus();
+  });
+
+  document.getElementById('ledgerRows').addEventListener('click', function(e){
+    const btn = e.target.closest('.del');
+    if(!btn) return;
+    entries = entries.filter(en => en.id !== btn.dataset.id);
+    save();
+    renderAll();
+  });
+
+  document.getElementById('recurringList').addEventListener('click', function(e){
+    const btn = e.target.closest('.stop');
+    if(!btn) return;
+    recurring = recurring.filter(r => r.id !== btn.dataset.id);
+    save();
+    renderAll();
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', function(){
+    if(entries.length === 0){ alert('no entries to export yet'); return; }
+    const header = ['date','type','description','category','amount'];
+    const rows = entries
+      .slice()
+      .sort((a,b) => new Date(a.date) - new Date(b.date))
+      .map(e => [
+        new Date(e.date).toISOString().slice(0,10),
+        e.type,
+        '"' + (e.desc||'').replace(/"/g,'""') + '"',
+        '"' + (e.cat||'').replace(/"/g,'""') + '"',
+        e.amount.toFixed(2)
+      ].join(','));
+    const csv = [header.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ledger-export-' + new Date().toISOString().slice(0,10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', function(){
+    if(!confirm('this will permanently delete every entry and recurring rule stored in this browser. continue?')) return;
+    entries = [];
+    recurring = [];
+    save();
+    renderAll();
+  });
+
+  function tickClock(){
+    document.getElementById('clock').textContent = new Date().toLocaleString(undefined, {
+      weekday:'short', hour:'2-digit', minute:'2-digit'
+    });
+  }
+  tickClock();
+  setInterval(tickClock, 30000);
+
+  load();
+  processRecurring();
+  renderAll();
+})();
+</script>
+</body>
+</html>
